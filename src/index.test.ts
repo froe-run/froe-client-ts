@@ -75,3 +75,81 @@ describe("Froe core", () => {
     expect(sentEntries(sent[1])).toHaveLength(500);
   });
 });
+
+describe("Froe resilience", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("retries twice on network failure, then drops with one console.warn", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchFn = vi.fn(async () => {
+      throw new Error("ECONNREFUSED");
+    }) as unknown as typeof globalThis.fetch;
+    const log = new Froe({ key: "fw_k", url: "http://x", fetch: fetchFn });
+    log.info("doomed");
+    const flushing = log.flush();
+    await vi.runAllTimersAsync(); // advance through both backoffs
+    await flushing;
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry a 4xx response", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchFn = vi.fn(async () => new Response("{}", { status: 401 })) as unknown as typeof globalThis.fetch;
+    const log = new Froe({ key: "fw_bad", url: "http://x", fetch: fetchFn });
+    log.info("rejected");
+    await log.flush();
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps working after a dropped batch", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    let fail = true;
+    const sent: any[] = [];
+    const fetchFn = vi.fn(async (url: any, init: any) => {
+      if (fail) throw new Error("down");
+      sent.push(JSON.parse(String(init.body)));
+      return new Response("{}", { status: 202 });
+    }) as unknown as typeof globalThis.fetch;
+    const log = new Froe({ key: "fw_k", url: "http://x", fetch: fetchFn });
+    log.info("lost");
+    const flushing = log.flush();
+    await vi.runAllTimersAsync();
+    await flushing;
+    fail = false;
+    log.info("delivered");
+    await log.flush();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].entries[0].message).toBe("delivered");
+  });
+
+  it("never throws, even with circular meta", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const log = new Froe({ key: "fw_k", url: "http://x", fetch: stubFetch([]) });
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    expect(() => log.info("odd", circular)).not.toThrow();
+    await expect(log.flush()).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledTimes(1); // the batch was dropped, loudly once
+  });
+
+  it("never throws when fetch itself is broken", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const log = new Froe({
+      key: "fw_k",
+      url: "http://x",
+      fetch: (() => {
+        throw new Error("sync explosion");
+      }) as unknown as typeof globalThis.fetch,
+    });
+    expect(() => log.info("x")).not.toThrow();
+    const flushing = log.flush();
+    await vi.runAllTimersAsync();
+    await expect(flushing).resolves.toBeUndefined();
+  });
+});
