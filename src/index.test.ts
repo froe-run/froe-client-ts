@@ -222,7 +222,7 @@ describe("Froe request timeout", () => {
 
   it("aborts a hung send after requestTimeoutMs, retries, then drops with one warn", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const fetchFn = vi.fn((_url: any, init: any) => {
+    const fetchMock = vi.fn((_url: any, init: any) => {
       // Simulates a black-hole server: the connection is accepted but
       // nothing ever comes back, so only the abort signal settles this.
       return new Promise<Response>((_resolve, reject) => {
@@ -230,16 +230,17 @@ describe("Froe request timeout", () => {
           reject(new DOMException("The operation was aborted.", "AbortError"));
         });
       });
-    }) as unknown as typeof globalThis.fetch;
+    });
+    const fetchFn = fetchMock as unknown as typeof globalThis.fetch;
     const log = new Froe({ key: "fw_k", url: "http://x", requestTimeoutMs: 50, fetch: fetchFn });
     log.info("hangs forever");
 
     await log.flush();
 
-    expect(fetchFn).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0][0]).toContain("(3 attempts)");
-    const init = fetchFn.mock.calls[0][1] as RequestInit;
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
     expect(init.signal).toBeInstanceOf(AbortSignal);
   }, 10000);
 });
