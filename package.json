@@ -28,5 +28,6 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/froe-run/froe-client-ts.git"
-  }
+  },
+  "license": "MIT"
 }
