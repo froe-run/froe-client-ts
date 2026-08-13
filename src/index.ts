@@ -8,6 +8,13 @@ export interface FroeOptions {
   // Ceiling on in-memory buffered entries; a host that logs faster than it
   // can flush drops its oldest entries rather than growing without bound.
   maxBufferedEntries?: number;
+  // Per-attempt cap on how long a send may hang before it is aborted and
+  // treated as a failed attempt. Without this, a server that accepts the
+  // connection but never responds ties up an in-flight request for
+  // Node's undici default (~5 minutes), and because flushes are not
+  // re-entrancy guarded, steady logging can pile up one such hang per
+  // flush tick.
+  requestTimeoutMs?: number;
   fetch?: typeof globalThis.fetch;
 }
 
@@ -39,6 +46,7 @@ export class Froe {
   private readonly batchSize: number;
   private readonly flushIntervalMs: number;
   private readonly maxBufferedEntries: number;
+  private readonly requestTimeoutMs: number;
   private readonly fetchFn: typeof globalThis.fetch;
   // Set on the first drop of an overflow episode, cleared once a send
   // succeeds, so a host stuck offline gets one warning, not one per entry.
@@ -52,6 +60,7 @@ export class Froe {
     // ponytail: 10000 is the buffer ceiling; past it we drop the oldest
     // entries rather than let an offline host grow this without bound.
     this.maxBufferedEntries = opts.maxBufferedEntries ?? 10000;
+    this.requestTimeoutMs = opts.requestTimeoutMs ?? 10000;
     this.fetchFn = opts.fetch ?? globalThis.fetch;
   }
 
@@ -136,6 +145,7 @@ export class Froe {
           method: "POST",
           headers: { "content-type": "application/json", authorization: `Bearer ${this.key}` },
           body,
+          signal: AbortSignal.timeout(this.requestTimeoutMs),
         });
         if (res.ok) {
           this.overflowWarned = false;

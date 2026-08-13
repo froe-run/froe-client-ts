@@ -44,6 +44,7 @@ new Froe({
   batchSize: 50,               // flush after this many buffered entries
   flushIntervalMs: 2000,       // or after this many ms, whichever first
   maxBufferedEntries: 10000,   // buffer ceiling; oldest entries drop past it
+  requestTimeoutMs: 10000,     // abort a hung send after this many ms
   fetch: myFetch,               // custom fetch, mainly useful in tests
 });
 ```

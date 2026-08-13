@@ -211,3 +211,35 @@ describe("Froe resilience", () => {
     await expect(flushing).resolves.toBeUndefined();
   });
 });
+
+describe("Froe request timeout", () => {
+  // AbortSignal.timeout schedules its own internal timer outside Node's
+  // public timer functions; vi.useFakeTimers (even with every timer name
+  // in `toFake`) does not advance it, verified empirically against this
+  // Vitest/Node combination. Real timers with a small requestTimeoutMs
+  // are the only way to exercise the abort path deterministically.
+  afterEach(() => vi.restoreAllMocks());
+
+  it("aborts a hung send after requestTimeoutMs, retries, then drops with one warn", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchFn = vi.fn((_url: any, init: any) => {
+      // Simulates a black-hole server: the connection is accepted but
+      // nothing ever comes back, so only the abort signal settles this.
+      return new Promise<Response>((_resolve, reject) => {
+        (init.signal as AbortSignal).addEventListener("abort", () => {
+          reject(new DOMException("The operation was aborted.", "AbortError"));
+        });
+      });
+    }) as unknown as typeof globalThis.fetch;
+    const log = new Froe({ key: "fw_k", url: "http://x", requestTimeoutMs: 50, fetch: fetchFn });
+    log.info("hangs forever");
+
+    await log.flush();
+
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain("(3 attempts)");
+    const init = fetchFn.mock.calls[0][1] as RequestInit;
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  }, 10000);
+});
