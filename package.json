@@ -9,16 +9,24 @@
     ".": "./dist/index.js",
     "./pino": "./dist/pino.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "devDependencies": {
     "@types/node": "^20.14.0",
     "pino": "^9.3.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/froe-run/froe-client-ts.git"
   }
 }
