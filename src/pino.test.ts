@@ -98,4 +98,31 @@ describe("froe pino transport", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].entries).toHaveLength(1);
   });
+
+  // A multi-byte UTF-8 character (e.g. the "é" in "météo") can straddle a
+  // chunk boundary when the host writes raw bytes; naive `chunk.toString()`
+  // on each piece would decode each half separately and corrupt the
+  // character. StringDecoder buffers the split bytes until the character
+  // is complete.
+  it("reassembles a multi-byte UTF-8 character split across chunk boundaries", async () => {
+    const { sent, fetchFn } = stub();
+    const stream = froeTransport({ key: "fw_k", url: "http://x", fetch: fetchFn });
+    const line = JSON.stringify({ ...REC, froe: true, msg: "météo" });
+    const buf = Buffer.from(line, "utf8");
+    // "é" is 0xC3 0xA9 in UTF-8; find its first byte and split right after
+    // it, so one write ends mid-character and the next starts mid-character.
+    const eIndex = buf.indexOf(Buffer.from("é", "utf8"));
+    const splitAt = eIndex + 1;
+
+    stream.write(buf.subarray(0, splitAt));
+    // Second write has no trailing newline, so delivery depends on the
+    // trailing-partial-line handling in final() as well as write().
+    stream.write(buf.subarray(splitAt));
+    stream.end();
+    await once(stream, "close");
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0].entries).toHaveLength(1);
+    expect(sent[0].entries[0].message).toBe("météo");
+  });
 });

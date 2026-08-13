@@ -1,4 +1,5 @@
 import { Writable } from "node:stream";
+import { StringDecoder } from "node:string_decoder";
 import { Froe, type Level } from "./index.js";
 
 export interface FroePinoOptions {
@@ -22,6 +23,11 @@ const OMIT = new Set(["level", "time", "msg", "pid", "hostname", "froe"]);
 export default function froeTransport(opts: FroePinoOptions): Writable {
   const client = new Froe({ key: opts.key, url: opts.url, fetch: opts.fetch });
   let tail = "";
+  // A chunk boundary can land inside a multi-byte UTF-8 character; naive
+  // `chunk.toString()` per chunk would decode each half separately and
+  // corrupt it. One decoder per transport instance carries pending bytes
+  // across writes until a full character is available.
+  const decoder = new StringDecoder("utf8");
 
   function handle(line: string): void {
     try {
@@ -50,7 +56,7 @@ export default function froeTransport(opts: FroePinoOptions): Writable {
 
   return new Writable({
     write(chunk, _enc, cb) {
-      tail += chunk.toString();
+      tail += decoder.write(chunk);
       const lines = tail.split("\n");
       tail = lines.pop() ?? "";
       for (const line of lines) {
@@ -59,6 +65,7 @@ export default function froeTransport(opts: FroePinoOptions): Writable {
       cb();
     },
     final(cb) {
+      tail += decoder.end();
       if (tail.trim() !== "") handle(tail);
       client.flush().then(() => cb(), () => cb());
     },

@@ -76,6 +76,31 @@ describe("Froe core", () => {
   });
 });
 
+describe("Froe buffer cap", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("drops oldest entries past maxBufferedEntries, warning once per overflow episode", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const sent: Sent[] = [];
+    const log = new Froe({ key: "fw_k", url: "http://x", maxBufferedEntries: 3, fetch: stubFetch(sent) });
+
+    log.info("1"); log.info("2"); log.info("3"); log.info("4"); log.info("5");
+    expect(warn).toHaveBeenCalledTimes(1);
+    await log.flush();
+    expect(sent).toHaveLength(1);
+    expect(sentEntries(sent[0]).map((e: any) => e.message)).toEqual(["3", "4", "5"]);
+
+    // The successful flush above cleared the warn flag; a fresh overflow
+    // episode must warn again, not stay silent because of the first one.
+    log.info("6"); log.info("7"); log.info("8"); log.info("9");
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("Froe resilience", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
@@ -138,7 +163,37 @@ describe("Froe resilience", () => {
     circular.self = circular;
     expect(() => log.info("odd", circular)).not.toThrow();
     await expect(log.flush()).resolves.toBeUndefined();
-    expect(warn).toHaveBeenCalledTimes(1); // the batch was dropped, loudly once
+    // The entry is quarantined at log() time now (never reaches the
+    // buffer), so flush() has nothing to send; still exactly one warn.
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops an oversized entry at log time without poisoning the batch", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const sent: Sent[] = [];
+    const log = new Froe({ key: "fw_k", url: "http://x", fetch: stubFetch(sent) });
+    log.info("ok1");
+    log.info("x".repeat(65 * 1024));
+    log.info("ok2");
+    await log.flush();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveLength(1);
+    expect(sentEntries(sent[0]).map((e: any) => e.message)).toEqual(["ok1", "ok2"]);
+  });
+
+  it("drops a circular-meta entry at log time; subsequent entries still deliver", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const sent: Sent[] = [];
+    const log = new Froe({ key: "fw_k", url: "http://x", fetch: stubFetch(sent) });
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    log.info("before", circular);
+    log.info("after");
+    await log.flush();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveLength(1);
+    expect(sentEntries(sent[0])).toHaveLength(1);
+    expect(sentEntries(sent[0])[0].message).toBe("after");
   });
 
   it("never throws when fetch itself is broken", async () => {
