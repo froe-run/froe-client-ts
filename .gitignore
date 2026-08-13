@@ -5,3 +5,11 @@ coverage/
 .env
 !.env.example
 .DS_Store
+
+# The machine ignores .claude globally (core.excludesfile); this repo checks
+# its skills in, so unignore the directory and re-ignore the local-only
+# files. Repo .gitignore outranks the global excludes file.
+!.claude/
+.claude/settings.local.json
+.claude/worktrees/
+.claude/scheduled_tasks.lock
