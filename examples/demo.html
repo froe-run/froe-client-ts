@@ -8,7 +8,7 @@
        http.server, then open examples/demo.html through that server
        (module imports and clipboard access both need http(s), not
        file://)
-    3. run the backend: go run ./server --data-dir /tmp/froe-demo
+    3. run the backend: cd server && FROE_CORS_ORIGINS='*' FROE_DATA_DIR=/tmp/froe-demo go run .
 
   No build step of its own, no framework, one file.
 -->
@@ -657,7 +657,7 @@
     function showServerUnreachable() {
       showStatus(
         "Cannot reach the server.",
-        "Start the server: go run ./server --data-dir /tmp/froe-demo (in the backend repo), then retry."
+        "Start the server (backend repo): cd server && FROE_CORS_ORIGINS='*' FROE_DATA_DIR=/tmp/froe-demo go run . Then retry."
       );
     }
 
