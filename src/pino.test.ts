@@ -74,6 +74,18 @@ describe("froe pino transport", () => {
     expect(sent[0].entries[0].meta).toBeUndefined();
   });
 
+  it("stamps arrival time when the host record carries no time (e.g. pino timestamp: false)", async () => {
+    const { sent, fetchFn } = stub();
+    const stream = froeTransport({ key: "fw_k", url: "http://x", fetch: fetchFn });
+    const { time: _time, ...noTime } = REC;
+    await run(stream, [{ ...noTime, froe: true }]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].entries).toHaveLength(1);
+    const e = sent[0].entries[0];
+    expect(e.message).toBe("payment ok");
+    expect(e.time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  });
+
   it("survives partial lines split across writes and garbage lines", async () => {
     const { sent, fetchFn } = stub();
     const stream = froeTransport({ key: "fw_k", url: "http://x", fetch: fetchFn });

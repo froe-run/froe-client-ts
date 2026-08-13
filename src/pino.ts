@@ -31,11 +31,17 @@ export default function froeTransport(opts: FroePinoOptions): Writable {
       for (const [k, v] of Object.entries(rec)) {
         if (!OMIT.has(k)) meta[k] = v;
       }
+      // A host logger configured with `timestamp: false` (or any record
+      // missing a numeric time) has no timestamp to carry over; omit it so
+      // the core stamps arrival time instead of building an Invalid Date.
+      const time = typeof rec.time === "number" && Number.isFinite(rec.time)
+        ? new Date(rec.time).toISOString()
+        : undefined;
       client.log(
         LEVELS[rec.level] ?? "info",
         typeof rec.msg === "string" ? rec.msg : "",
         Object.keys(meta).length > 0 ? meta : undefined,
-        new Date(rec.time).toISOString(),
+        time,
       );
     } catch {
       // A malformed line must never take the transport down.

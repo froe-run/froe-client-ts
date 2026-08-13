@@ -83,7 +83,9 @@ export class Froe {
       console.warn(`froe: dropped ${entries.length} entries with unserializable meta`);
       return;
     }
+    let attempts = 0;
     for (let attempt = 0; attempt < 3; attempt++) {
+      attempts++;
       try {
         const res = await this.fetchFn(`${this.url}/v1/logs`, {
           method: "POST",
@@ -98,7 +100,7 @@ export class Froe {
       }
       if (attempt < 2) await sleep(250 * 4 ** attempt);
     }
-    console.warn(`froe: dropped ${entries.length} entries after retries`);
+    console.warn(`froe: dropped ${entries.length} entries (${attempts} attempts)`);
   }
 }
 

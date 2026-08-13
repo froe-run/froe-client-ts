@@ -95,6 +95,7 @@ describe("Froe resilience", () => {
     await flushing;
     expect(fetchFn).toHaveBeenCalledTimes(3);
     expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain("(3 attempts)");
   });
 
   it("does not retry a 4xx response", async () => {
@@ -105,6 +106,8 @@ describe("Froe resilience", () => {
     await log.flush();
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledTimes(1);
+    // A single immediate 4xx drop is one attempt, not "after retries".
+    expect(warn.mock.calls[0][0]).toContain("(1 attempts)");
   });
 
   it("keeps working after a dropped batch", async () => {
