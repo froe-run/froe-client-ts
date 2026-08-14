@@ -455,6 +455,10 @@
       <label for="serverUrlInput">Server URL</label>
       <input id="serverUrlInput" type="text" value="http://localhost:8080" />
     </div>
+    <div class="field server-control">
+      <label for="adminTokenInput">Admin token</label>
+      <input id="adminTokenInput" type="text" value="dev" />
+    </div>
     <div class="workspace-control">
       <button id="provisionBtn" class="btn btn-accent" type="button">Provision workspace</button>
       <button id="resetBtn" class="btn" type="button">Reset</button>
@@ -553,6 +557,7 @@
 
     // ---- element references ----------------------------------------------
     const serverUrlInput = document.getElementById("serverUrlInput");
+    const adminTokenInput = document.getElementById("adminTokenInput");
     const provisionBtn = document.getElementById("provisionBtn");
     const resetBtn = document.getElementById("resetBtn");
     const workspaceInfo = document.getElementById("workspaceInfo");
@@ -601,6 +606,12 @@
     function getServerUrl() {
       const raw = serverUrlInput.value.trim() || "http://localhost:8080";
       return raw.replace(/\/+$/, "");
+    }
+
+    // Management endpoints require the server's operator token
+    // (FROE_ADMIN_TOKEN); the compose stack and the hint below use "dev".
+    function getAdminToken() {
+      return adminTokenInput.value.trim();
     }
 
     function loadWorkspace() {
@@ -657,7 +668,7 @@
     function showServerUnreachable() {
       showStatus(
         "Cannot reach the server.",
-        "Start the server (backend repo): cd server && FROE_CORS_ORIGINS='*' FROE_DATA_DIR=/tmp/froe-demo go run . Then retry."
+        "Start the server (backend repo): cd server && FROE_CORS_ORIGINS='*' FROE_ADMIN_TOKEN=dev FROE_DATA_DIR=/tmp/froe-demo go run . Then retry."
       );
     }
 
@@ -670,9 +681,12 @@
     async function postJSON(url, payload) {
       let res;
       try {
+        const headers = { "content-type": "application/json" };
+        const adminToken = getAdminToken();
+        if (adminToken) headers.authorization = `Bearer ${adminToken}`;
         res = await fetch(url, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers,
           body: JSON.stringify(payload),
         });
       } catch {
