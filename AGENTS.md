@@ -12,14 +12,21 @@ implements, and any Froe instance serves it at `GET /v1`.
 - Package `froe`. Zero runtime dependencies; Node 18+ built-in `fetch`.
   Adding a dependency is a design decision, not a convenience.
 - The hard rule of this package: log calls never throw and never block the
-  host application. Failures buffer, retry twice with backoff, then drop
-  with one `console.warn`. Oversized entries (64 KB message plus meta) and
-  unserializable meta are dropped at the call site. Any change must
-  preserve these properties; there are tests asserting them.
-- Buffering: in-memory, capped (oldest dropped beyond the cap), flushed as
-  one `POST /v1/logs` batch at the size or interval threshold, and on
-  `flush()`. Do not invent fields the server does not accept; the contract
-  wins over convenience.
+  host application. Failed batches stay queued and retry with capped
+  exponential backoff (250ms * 4^failures, capped at 30 seconds; a 429
+  honors `Retry-After`); only a non-429 4xx drops a batch, with one
+  `console.warn`, because no retry fixes a request that is itself wrong.
+  Memory is bounded by one knob, `maxBufferedEntries`, counting buffered
+  entries plus queued batch entries together, evicting oldest first.
+  `flush()` makes one ordered pass and never blocks shutdown. Oversized
+  entries (64 KB message plus meta) and unserializable meta are dropped at
+  the call site. Any change must preserve these properties; there are
+  tests asserting them.
+- Buffering: in-memory. Entries drain into frozen batches (at most 1000
+  entries each, body and `Idempotency-Key` fixed for the batch's whole
+  life) on the size or interval threshold and on `flush()`; batches ship
+  strictly in order from a FIFO queue, only ever the head. Do not invent
+  fields the server does not accept; the contract wins over convenience.
 - Logger adapters (e.g. pino) live as subpath exports (`froe/pino`), map
   the host lib's record shape onto Froe entries, and feed the same buffer.
   They stay thin; policy (level mapping, marker filtering) is explicit

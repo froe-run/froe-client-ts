@@ -43,7 +43,7 @@ new Froe({
   url: "https://froe.run",    // your Froe instance
   batchSize: 50,               // flush after this many buffered entries
   flushIntervalMs: 2000,       // or after this many ms, whichever first
-  maxBufferedEntries: 10000,   // buffer ceiling; oldest entries drop past it
+  maxBufferedEntries: 10000,   // memory ceiling, buffered plus queued entries; oldest drop past it
   requestTimeoutMs: 10000,     // abort a hung send after this many ms
   fetch: myFetch,               // custom fetch, mainly useful in tests
 });
@@ -54,15 +54,26 @@ Only `key` is required; every other option has the default shown above.
 ## Delivery guarantees
 
 `log()` calls never throw and never block the caller. Entries are buffered
-in memory and sent as a batch when the buffer reaches `batchSize`, when
-`flushIntervalMs` elapses, or when you call `flush()`. A failed send retries
-twice with backoff, then the batch is dropped with a `console.warn`.
+in memory and sent as batches, strictly in order, when the buffer reaches
+`batchSize`, when `flushIntervalMs` elapses, or when you call `flush()`. A
+batch that fails with a network error, a timeout, a 5xx, or a 429 stays
+queued and retries with exponential backoff (capped at 30 seconds; a 429
+honors the server's `Retry-After`). Only another 4xx drops the batch, with
+a `console.warn`, because no retry can fix a request the server rejected as
+wrong. Every batch carries a per-batch `Idempotency-Key` and an exact body,
+both fixed across all its retries, so a retry of a batch the server already
+accepted never stores duplicates.
 
 An entry whose message plus meta exceeds 64 KB, or whose meta cannot be
 JSON-serialized (for example a circular reference), is dropped at the call
-site with a warning; it never enters the buffer. If entries pile up faster
-than they can be sent, the buffer keeps at most `maxBufferedEntries` and
-drops the oldest ones.
+site with a warning; it never enters the buffer. `maxBufferedEntries` is
+the one memory knob: it caps buffered entries plus queued batch entries
+together, and on overflow the oldest go first (whole queued batches, then
+the oldest buffer entries), with one warning per overflow episode.
+
+`flush()` makes a single ordered delivery pass and always resolves, even
+while the server is down; it never holds your shutdown hook hostage to a
+backoff. Whatever it could not deliver stays queued for the next interval.
 
 In short: logs are telemetry, not durable storage. Nothing here is meant to
 replace your application's own logging or an audit trail.
