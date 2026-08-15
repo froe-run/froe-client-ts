@@ -73,7 +73,9 @@ the oldest buffer entries), with one warning per overflow episode.
 
 `flush()` makes a single ordered delivery pass and always resolves, even
 while the server is down; it never holds your shutdown hook hostage to a
-backoff. Whatever it could not deliver stays queued for the next interval.
+backoff, and it is the only path that ignores one. A buffer that fills
+during a backoff queues its batch and waits for the interval. Whatever
+`flush()` could not deliver stays queued for the next interval.
 
 In short: logs are telemetry, not durable storage. Nothing here is meant to
 replace your application's own logging or an audit trail.

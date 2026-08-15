@@ -166,7 +166,14 @@ export class Froe {
         }
       }
       if (this.buffer.length >= this.batchSize) {
-        void this.flush();
+        // A full buffer is a send trigger, not a shutdown, so it goes
+        // through the backoff gate rather than around it like flush().
+        // Without the gate a hot logger attempts the failing head batch
+        // every batchSize entries, defeating the backoff (and the
+        // server's Retry-After) exactly when the server is under most
+        // pressure. The batch is still formed and queued; the interval
+        // ships it once the gate opens.
+        void this.pass(false).catch(() => {});
       } else {
         this.syncTimer();
       }

@@ -269,6 +269,33 @@ describe("Froe retry queue", () => {
     expect(warn).not.toHaveBeenCalled(); // 429 never drops the batch
   });
 
+  it("does not attempt on a full buffer while the retry gate is closed", async () => {
+    const sent: Sent[] = [];
+    const fetchFn = vi.fn(async (url: any, init: any) => {
+      sent.push({ url: String(url), init });
+      return new Response("{}", { status: 429, headers: { "retry-after": "2" } });
+    }) as unknown as typeof globalThis.fetch;
+    const log = new Froe({
+      key: "fw_k", url: "http://x", batchSize: 2, flushIntervalMs: 500, fetch: fetchFn,
+    });
+
+    log.info("1"); log.info("2");
+    await vi.advanceTimersByTimeAsync(1);
+    expect(sent).toHaveLength(1); // nothing is gated yet, so the full buffer ships
+
+    // A hot logger keeps filling the buffer through the 2 second gate. A
+    // full buffer is not a shutdown: each one queues its batch and waits,
+    // or the backoff and the server's Retry-After are defeated exactly
+    // when the server is under most pressure.
+    for (let i = 0; i < 20; i++) log.info(`hot ${i}`);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(sent).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(1500); // the tick past the gate retries
+    expect(sent).toHaveLength(2);
+    expect(keyOf(sent[1])).toBe(keyOf(sent[0])); // still the head batch, in order
+  });
+
   it("never attempts the second queued batch before the failing head succeeds, then delivers both in order", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const sent: Sent[] = [];

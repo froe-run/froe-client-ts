@@ -18,7 +18,9 @@ implements, and any Froe instance serves it at `GET /v1`.
   `console.warn`, because no retry fixes a request that is itself wrong.
   Memory is bounded by one knob, `maxBufferedEntries`, counting buffered
   entries plus queued batch entries together, evicting oldest first.
-  `flush()` makes one ordered pass and never blocks shutdown. Oversized
+  `flush()` makes one ordered pass, never blocks shutdown, and is the
+  only path that skips the backoff gate; a size trigger goes through it.
+  Oversized
   entries (64 KB message plus meta) and unserializable meta are dropped at
   the call site. Any change must preserve these properties; there are
   tests asserting them.
