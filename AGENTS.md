@@ -9,8 +9,8 @@ implements, and any Froe instance serves it at `GET /v1`.
 
 ## Shape
 
-- Package `froe`. Zero runtime dependencies; Node 18+ built-in `fetch`.
-  Adding a dependency is a design decision, not a convenience.
+- Package `@froerun/froe`. Zero runtime dependencies; Node 18+ built-in
+  `fetch`. Adding a dependency is a design decision, not a convenience.
 - The hard rule of this package: log calls never throw and never block the
   host application. Failed batches stay queued and retry with capped
   exponential backoff (250ms * 4^failures, capped at 30 seconds; a 429
@@ -29,8 +29,8 @@ implements, and any Froe instance serves it at `GET /v1`.
   life) on the size or interval threshold and on `flush()`; batches ship
   strictly in order from a FIFO queue, only ever the head. Do not invent
   fields the server does not accept; the contract wins over convenience.
-- Logger adapters (e.g. pino) live as subpath exports (`froe/pino`), map
-  the host lib's record shape onto Froe entries, and feed the same buffer.
+- Logger adapters (e.g. pino) live as subpath exports (`@froerun/froe/pino`),
+  map the host lib's record shape onto Froe entries, and feed the same buffer.
   They stay thin; policy (level mapping, marker filtering) is explicit
   options, not magic.
 

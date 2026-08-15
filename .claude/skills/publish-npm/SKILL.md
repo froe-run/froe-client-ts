@@ -25,7 +25,7 @@ From the repo root:
 ## Step 2: version check
 
 - Read `version` from `package.json`.
-- Run `npm view froe version`.
+- Run `npm view @froerun/froe version`.
 - If the package exists and the published version equals the local version,
   stop: a bump is needed. Ask the user which one (patch, minor, major), then
   apply it with `npm version <bump> --no-git-tag-version` and rerun the
@@ -63,9 +63,10 @@ Never run `npm publish` without it.
 
 ## Step 7: publish
 
-- Run `npm publish` (add `--access public` only if the package name is
-  scoped, e.g. `@scope/froe`).
-- Verify with `npm view froe version`.
+- Run `npm publish`. The name is scoped (`@froerun/froe`), which npm would
+  publish as private and reject; `publishConfig.access` in `package.json`
+  already sets it to public, so no flag is needed.
+- Verify with `npm view @froerun/froe version`.
 - Suggest, without running it, `git tag v<version>`.
 
 ## Step 8: failure handling

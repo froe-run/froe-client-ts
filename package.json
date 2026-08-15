@@ -1,5 +1,5 @@
 {
-  "name": "froe",
+  "name": "@froerun/froe",
   "version": "0.1.0",
   "description": "Push shareable logs to a Froe instance",
   "type": "module",
@@ -12,6 +12,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "test": "vitest run"

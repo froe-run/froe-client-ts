@@ -1,4 +1,4 @@
-# froe
+# @froerun/froe
 
 Push selected logs from your service to a Froe instance. Clients and agents
 fetch them back with a read key over a plain REST API.
@@ -6,7 +6,7 @@ fetch them back with a read key over a plain REST API.
 ## Install
 
 ```
-npm install froe
+npm install @froerun/froe
 ```
 
 Requires Node 18+ (uses the built-in `fetch`). Zero runtime dependencies.
@@ -14,7 +14,7 @@ Requires Node 18+ (uses the built-in `fetch`). Zero runtime dependencies.
 ## Quickstart
 
 ```typescript
-import { Froe } from "froe";
+import { Froe } from "@froerun/froe";
 
 const log = new Froe({ key: "fw_..." });
 
@@ -87,7 +87,7 @@ import pino from "pino";
 
 const logger = pino({
   transport: {
-    target: "froe/pino",
+    target: "@froerun/froe/pino",
     options: { key: "fw_...", url: "https://froe.run" },
   },
 });
